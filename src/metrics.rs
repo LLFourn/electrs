@@ -1,11 +1,8 @@
-use page_size;
 use prometheus::{self, Encoder};
-use std::fs;
 use std::io;
 use std::net::SocketAddr;
 use std::thread;
 use std::time::Duration;
-use sysconf;
 use tiny_http;
 
 pub use prometheus::{
@@ -98,14 +95,20 @@ struct Stats {
     fds: usize,
 }
 
+#[cfg(not(feature = "sysconf"))]
 fn parse_stats() -> Result<Stats> {
-    if cfg!(target_os = "macos") {
-        return Ok(Stats {
-            utime: 0f64,
-            rss: 0u64,
-            fds: 0usize,
-        });
-    }
+    Ok(Stats {
+        utime: 0f64,
+        rss: 0u64,
+        fds: 0usize,
+    })
+}
+
+#[cfg(feature = "sysconf")]
+fn parse_stats() -> Result<Stats> {
+    use sysconf;
+    use page_size;
+    use std::fs;
     let value = fs::read_to_string("/proc/self/stat").chain_err(|| "failed to read stats")?;
     let parts: Vec<&str> = value.split_whitespace().collect();
     let page_size = page_size::get() as u64;
